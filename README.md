@@ -305,8 +305,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ### License
 
-This refactored implementation is released under the **MIT License** (or specify your chosen license). See `LICENSE` file for details.
-
 The original OSpRad hardware and firmware remain under their original license terms. Please respect the original project's licensing when using OSpRad hardware or firmware.
 
 ### How to Contribute
