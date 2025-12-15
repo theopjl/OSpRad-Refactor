@@ -299,6 +299,7 @@ class OSpRadDevice(SpectralDevice):
     
     def measure(self, measurement_type: MeasurementType) -> Optional[MeasurementResult]:
         """Perform measurement"""
+        print("Measuring with osprad")
         if not self.is_connected():
             self.set_error("Device not connected")
             return None
