@@ -3,3 +3,5 @@ jeti/
 JETI_EXAMPLES_DOCUMENTATION.md
 examples/__pycache__
 __pycache__
+devices/__pycache__
+core/__pycache__
