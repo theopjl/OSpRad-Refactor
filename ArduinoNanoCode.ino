@@ -31,7 +31,7 @@ int unitNumber = 9; // Add a unit-specific number here. This number is looked up
 // write "w98" to manually contorl the shutter wheel
 int posDark = 100; // angle for dark measurement
 int posIrr = 42; // angle for irradiance (cosine diffuser)
-int posRad = 170; // angle for radiance measurement (clear)
+int posRad = 169; // angle for radiance measurement (clear)
 
 
 
