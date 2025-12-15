@@ -1,3 +1,4 @@
 jeti/
 ..gitignore.un~
 JETI_EXAMPLES_DOCUMENTATION.md
+examples/__pycache__
