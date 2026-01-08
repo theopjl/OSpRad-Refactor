@@ -10,11 +10,11 @@ import math
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from core.device_interface import (
+from ..core.device_interface import (
     SpectralDevice, DeviceCapabilities, DeviceStatus, 
     MeasurementType, SettingDefinition
 )
-from core.measurement_result import MeasurementResult, MeasurementUnit
+from ..core.measurement_result import MeasurementResult, MeasurementUnit
 
 
 # ============================================================================
@@ -73,30 +73,7 @@ class OSpRadCalibration:
         self.unit_number = unit_number
         
         try:
-            # Try multiple locations for calibration file
-            import os
-            possible_paths = [
-                filename,  # Current directory
-                os.path.join(os.path.dirname(__file__), '..', filename),  # Parent of devices/
-                os.path.join(os.getcwd(), filename),  # Working directory
-                os.path.join(os.getcwd(), '..', filename),  # Parent of working directory
-            ]
-            
-            cal_file = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    cal_file = path
-                    break
-            
-            if cal_file is None:
-                print(f"Calibration file '{filename}' not found in any of these locations:")
-                for p in possible_paths:
-                    print(f"  - {os.path.abspath(p)}")
-                return False
-            
-            print(f"Loading calibration from: {os.path.abspath(cal_file)}")
-            
-            with open(cal_file, 'r') as file:
+            with open(filename, 'r') as file:
                 for line in file:
                     row = line.strip().split(',')
                     
@@ -219,14 +196,7 @@ class OSpRadDevice(SpectralDevice):
             
             time.sleep(1)  # Allow connection to stabilize
             
-            # Clear any stale data in buffers
-            self.ser.reset_input_buffer()
-            self.ser.reset_output_buffer()
-            
-            print("Device buffers cleared, ready for commands")
-            
             self.status = DeviceStatus.CONNECTED
-            print(self.is_connected())
             return True
             
         except Exception as e:
@@ -258,7 +228,7 @@ class OSpRadDevice(SpectralDevice):
             serial_number=str(self.calibration.unit_number) if self.calibration.is_loaded else "",
             
             measurement_types=[MeasurementType.RADIANCE, MeasurementType.IRRADIANCE],
-            wavelength_range=(350, 850),
+            wavelength_range=(380, 780),
             pixel_count=SENSOR_PIXELS,
             
             settings=[
@@ -369,10 +339,18 @@ class OSpRadDevice(SpectralDevice):
             # Calculate calibrated spectrum
             spectral_data, luminance = self._calculate_spectrum(raw_counts, actual_int_time, cmd)
             
+            # Filter to 380-780nm range
+            filtered_wavelengths = []
+            filtered_spectral_data = []
+            for i, wl in enumerate(self.calibration.wavelength):
+                if 380 <= wl <= 780:
+                    filtered_wavelengths.append(wl)
+                    filtered_spectral_data.append(spectral_data[i])
+            
             # Create result
             result = MeasurementResult(
-                wavelengths=self.calibration.wavelength,
-                spectral_data=spectral_data,
+                wavelengths=filtered_wavelengths,
+                spectral_data=filtered_spectral_data,
                 measurement_type=measurement_type.value,
                 timestamp=datetime.now(),
                 luminance=luminance if cmd == 'r' else 0,
@@ -437,12 +415,12 @@ class OSpRadDevice(SpectralDevice):
             raise RuntimeError("No serial ports found")
         
         print(f"Available ports: {com_list}")
-        return serial.Serial(com_list[0], SERIAL_BAUD_RATE, timeout=10)
+        return serial.Serial(com_list[0], SERIAL_BAUD_RATE)
     
     def _send_command(self, command: str) -> bool:
         """Send command and wait for acknowledgment"""
         try:
-            self.ser.write(str.encode(command + '\n'))  # Add newline for Arduino
+            self.ser.write(str.encode(command  + '\n'))
             self.ser.readline()  # Wait for ack
             return True
         except Exception as e:
@@ -450,48 +428,6 @@ class OSpRadDevice(SpectralDevice):
             return False
     
     def _request_measurement(self, cmd: str) -> Optional[List[float]]:
-        # """Request and read measurement data"""
-        # try:
-        #     # Clear input buffer before sending command
-        #     self.ser.reset_input_buffer()
-            
-        #     print(f"Sending measurement command: {cmd}")
-        #     bytes_written = self.ser.write(str.encode(cmd + '\n'))  # Add newline for Arduino
-        #     print(f"Bytes written: {bytes_written}")
-            
-        #     # Flush to ensure command is sent immediately
-        #     self.ser.flush()
-            
-        #     print("Waiting for device response...")
-        #     # Read response with timeout
-        #     output = self.ser.readline()
-            
-        #     if output == b'':
-        #         print("No response from device (timeout)")
-        #         print(f"Bytes waiting in buffer: {self.ser.in_waiting}")
-        #         return None
-            
-        #     print(f"Received {len(output)} bytes: {output[:100]}...")  # Show first 100 bytes
-            
-        #     # Parse CSV data
-        #     values = output.split(b',')
-        #     print(f"Parsed {len(values)} values from response")
-            
-        #     try:
-        #         result = [float(v) for v in values]
-        #         print(f"Successfully converted to floats, first value: {result[0]}")
-        #         return result
-        #     except ValueError as e:
-        #         print(f"Parse error: {e}")
-        #         print(f"Raw data: {output}")
-        #         return None
-            
-        # except Exception as e:
-        #     print(f"Measurement error: {e}")
-        #     import traceback
-        #     traceback.print_exc()
-        #     return None
-        
         """Request and read measurement data"""
         try:
             print(f"Sending measurement command: {cmd}")
