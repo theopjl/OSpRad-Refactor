@@ -7,6 +7,7 @@
 import time
 import os
 import math
+import numpy as np
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -33,6 +34,7 @@ LUMINANCE_CONSTANT = 683
 CIE_Y_COEFFICIENTS = [0.821, 568.8, 46.9, 40.5, 0.286, 530.9, 16.3, 31.1]
 
 CALIBRATION_FILE = "calibration_data.csv"
+CALIBRATION_FACTORS_FILE = "reports/calibration_factors.txt"
 
 
 # ============================================================================
@@ -152,6 +154,46 @@ class OSpRadCalibration:
             self.ciey.append(y1 + y2)
 
 
+class CorrectionFactors:
+    """Manages correction factors from professional spectroradiometer calibration"""
+    
+    def __init__(self):
+        self.wavelengths: np.ndarray = None
+        self.corrections: np.ndarray = None
+        self.is_loaded: bool = False
+    
+    def load(self, filename: str = CALIBRATION_FACTORS_FILE) -> bool:
+        """Load correction factors from file"""
+        try:
+            # Load the factors file (skip comment lines starting with #)
+            data = np.loadtxt(filename)
+            self.wavelengths = data[:, 0]
+            self.corrections = data[:, 1]
+            self.is_loaded = True
+            print(f"✓ Facteurs de correction chargés: {len(self.wavelengths)} points ({self.wavelengths[0]:.1f}-{self.wavelengths[-1]:.1f} nm)")
+            return True
+        except FileNotFoundError:
+            print(f"⚠ Fichier de facteurs de correction non trouvé: {filename}")
+            print("  Les mesures seront effectuées sans correction.")
+            return False
+        except Exception as e:
+            print(f"⚠ Erreur lors du chargement des facteurs de correction: {e}")
+            return False
+    
+    def apply(self, wavelengths: List[float], spectral_data: List[float]) -> List[float]:
+        """Apply correction factors to spectral data via interpolation"""
+        if not self.is_loaded:
+            return spectral_data
+        
+        # Interpolate correction factors to match measurement wavelengths
+        corrections_interp = np.interp(wavelengths, self.wavelengths, self.corrections)
+        
+        # Apply correction
+        corrected_data = np.array(spectral_data) * corrections_interp
+        
+        return corrected_data.tolist()
+
+
 # ============================================================================
 # OSpRad Device
 # ============================================================================
@@ -169,6 +211,10 @@ class OSpRadDevice(SpectralDevice):
         self.calibration_file = calibration_file
         self.ser = None
         self.calibration = OSpRadCalibration()
+        self.correction_factors = CorrectionFactors()
+        
+        # Load correction factors at initialization
+        self.correction_factors.load()
         
         # Current settings
         self.integration_time = 0  # 0 = auto
@@ -347,6 +393,26 @@ class OSpRadDevice(SpectralDevice):
                     filtered_wavelengths.append(wl)
                     filtered_spectral_data.append(spectral_data[i])
             
+            # Store uncorrected data for comparison
+            uncorrected_data = filtered_spectral_data.copy()
+            
+            # Apply correction factors
+            if self.correction_factors.is_loaded:
+                filtered_spectral_data = self.correction_factors.apply(
+                    filtered_wavelengths, 
+                    filtered_spectral_data
+                )
+                print("\n" + "="*70)
+                print("COMPARAISON: MESURE BRUTE vs MESURE CORRIGÉE")
+                print("="*70)
+                self._print_spectrum_comparison(
+                    filtered_wavelengths, 
+                    uncorrected_data, 
+                    filtered_spectral_data,
+                    measurement_type
+                )
+                print("="*70 + "\n")
+            
             # Create result
             result = MeasurementResult(
                 wavelengths=filtered_wavelengths,
@@ -489,3 +555,35 @@ class OSpRadDevice(SpectralDevice):
         luminance *= LUMINANCE_CONSTANT
         
         return spectral_data, luminance
+    
+    def _print_spectrum_comparison(
+        self,
+        wavelengths: List[float],
+        uncorrected: List[float],
+        corrected: List[float],
+        measurement_type: MeasurementType
+    ) -> None:
+        """Print side-by-side comparison of uncorrected vs corrected spectrum"""
+        
+        unit = "W/(sr·m²·nm)" if measurement_type == MeasurementType.RADIANCE else "W/(m²·nm)"
+        
+        print(f"\n{'Wavelengths':>10} | {'Raw':>15} | {'Corrected':>15} | {'factor':>10}")
+        print("-" * 70)
+
+        # Print every 20nm for readability
+        step = max(1, len(wavelengths) // 20)
+        for i in range(0, len(wavelengths), step):
+            wl = wavelengths[i]
+            uncorr = uncorrected[i]
+            corr = corrected[i]
+            factor = corr / uncorr if uncorr != 0 else 0
+            print(f"{wl:>10.1f} nm | {uncorr:>15.6e} | {corr:>15.6e} | {factor:>10.3f}")
+        
+        # Print statistics
+        uncorr_mean = np.mean(uncorrected)
+        corr_mean = np.mean(corrected)
+        ratio = corr_mean / uncorr_mean if uncorr_mean != 0 else 0
+        
+        print("-" * 70)
+        print(f"{'Moyenne':>10} | {uncorr_mean:>15.6e} | {corr_mean:>15.6e} | {ratio:>10.3f}")
+        print(f"\nUnité: {unit}")
