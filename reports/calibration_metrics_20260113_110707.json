@@ -1,0 +1,25 @@
+{
+  "timestamp": "20260113_110707",
+  "wavelength_range": [
+    380.0,
+    779.0
+  ],
+  "num_points": 400,
+  "correction_factor_stats": {
+    "min": 0.08015520587877956,
+    "max": 2.8216329047153694,
+    "mean": 0.7782671809967695,
+    "median": 0.8467148712330137,
+    "std": 0.4773257643359536
+  },
+  "quality_metrics": {
+    "rmse_before": 0.014558018008644341,
+    "rmse_after": 9.129839561611137e-11,
+    "mae_before": 0.010026865904051543,
+    "mae_after": 7.782671869970264e-11,
+    "correlation_before": 0.7333678916765712,
+    "correlation_after": 1.0,
+    "rmse_improvement_percent": 99.9999993728652,
+    "mae_improvement_percent": 99.9999992238181
+  }
+}
